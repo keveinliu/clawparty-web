@@ -109,13 +109,13 @@ class YouzanPaymentService {
 
     try {
       const accessToken = await this.getAccessToken();
-      const price = Math.max(1, Number(order.quantity || 1)) *
+      const qrPrice = Math.max(1, Number(order.quantity || 1)) *
         Math.max(1, Number(this.env.youzanUnitPriceFen || 100));
       const apiUrl = `${this.env.youzanApiBaseUrl}/youzan.pay.qrcode.create/3.0.0`;
       const requestBody = {
-        price,
-        name: `Clawparty ${order.id.slice(0, 8)}`,
-        source: order.id,
+        qr_price: qrPrice,
+        qr_name: `Clawparty ${order.id.slice(0, 8)}`,
+        qr_type: "QR_TYPE_FIXED",
       };
 
       logInfo("youzan.qrcode.request", {

@@ -1,32 +1,11 @@
 const express = require("express");
-const axios = require("axios");
 const { YouzanVerification } = require("../services/youzanVerification");
-const { YouzanPaymentService } = require("../services/youzanPayment");
 const { OrderStore, ORDER_STATUS } = require("../models/order");
 const { Scheduler } = require("../scheduler");
 const { logInfo, logWarn, logError } = require("../utils/logger");
 
 const router = express.Router();
 const orderStore = new OrderStore();
-const youzanPaymentService = new YouzanPaymentService();
-
-async function fetchYouzanQrId(tid) {
-  try {
-    const accessToken = await youzanPaymentService.getAccessToken();
-    const env = youzanPaymentService.env;
-    const url = `${env.youzanApiBaseUrl}/youzan.trade.get/4.0.0`;
-    const resp = await axios.get(url, {
-      params: { access_token: accessToken, tid },
-      timeout: env.youzanRequestTimeoutMs,
-    });
-    const body = resp.data || {};
-    if (!body.success || !body.response) return null;
-    return body.response.qr_info?.qr_id || null;
-  } catch (err) {
-    logError("youzan.trade.get.error", err, { tid });
-    return null;
-  }
-}
 
 function findOrderByQrId(qrId) {
   const orders = orderStore.list();
@@ -77,12 +56,16 @@ router.post("/youzan/payment-callback", express.raw({ type: "*/*" }), async (req
 
     let order = null;
 
-    if (youzanPaymentService.hasApiCredentials()) {
-      const qrId = await fetchYouzanQrId(tid);
+    try {
+      const msg = JSON.parse(decodeURIComponent(data.msg || "{}"));
+      const qrId = msg.qr_id || msg.full_order_info?.order_info?.qr_id || null;
       logInfo("youzan.webhook.qr_lookup", { tid, qrId });
       if (qrId) {
         order = findOrderByQrId(qrId);
+        logInfo("youzan.webhook.qr_match", { tid, qrId, orderId: order?.id || null });
       }
+    } catch (parseErr) {
+      logWarn("youzan.webhook.msg_parse_error", { tid, error: parseErr.message });
     }
 
     if (!order) {
