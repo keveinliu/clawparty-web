@@ -66,6 +66,7 @@ class OrderStore {
       paymentQrCodeUrl: null,
       paymentQrUrl: null,
       idempotencyKey: data.idempotencyKey || null,
+      youzanTid: null,
     };
     orders.push(order);
     this.writeOrders(orders);
@@ -80,6 +81,13 @@ class OrderStore {
   findByIdempotencyKey(key) {
     const orders = this.readOrders();
     return orders.find((o) => o.idempotencyKey === key);
+  }
+
+  findLatestPaymentPending() {
+    const orders = this.readOrders();
+    return orders
+      .filter((o) => o.status === ORDER_STATUS.PAYMENT_PENDING)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0] || null;
   }
 
   update(id, updates) {

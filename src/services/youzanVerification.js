@@ -5,62 +5,35 @@ class YouzanVerification {
   constructor() {
     const env = getEnv();
     this.clientSecret = env.youzanClientSecret;
-    this.skewSeconds = env.youzanWebhookSkewSeconds;
+    this.kdt_id = env.youzanGrantId;
   }
 
-  verifySignature(payload, signature) {
+  verifySign(rawBody, eventSign) {
     if (!this.clientSecret) {
       console.warn("YOUZAN_CLIENT_SECRET not configured, skipping signature verification");
       return true;
     }
-
     const computed = crypto
-      .createHmac("sha256", this.clientSecret)
-      .update(payload)
+      .createHash("md5")
+      .update(this.clientSecret + rawBody + this.clientSecret)
       .digest("hex");
-
-    return computed === signature;
+    return computed === eventSign;
   }
 
-  verifyTimestamp(timestamp) {
-    if (!Number.isFinite(timestamp)) {
-      return false;
+  verify(rawBody, eventSign) {
+    if (!eventSign) {
+      return { valid: false, reason: "Missing event-sign header" };
     }
-
-    const now = Math.floor(Date.now() / 1000);
-    const diff = Math.abs(now - timestamp);
-    return diff <= this.skewSeconds;
-  }
-
-  verify(payload, signature, timestamp) {
-    if (!Number.isFinite(timestamp)) {
-      return {
-        valid: false,
-        reason: "Invalid timestamp",
-      };
+    if (!this.verifySign(rawBody, eventSign)) {
+      const computed = crypto
+        .createHash("md5")
+        .update(this.clientSecret + rawBody + this.clientSecret)
+        .digest("hex");
+      console.warn("Signature mismatch. received:", eventSign, "computed:", computed);
+      return { valid: false, reason: "Signature mismatch" };
     }
-
-    if (!this.verifyTimestamp(timestamp)) {
-      return {
-        valid: false,
-        reason: "Timestamp skew exceeded",
-      };
-    }
-
-    if (!this.verifySignature(payload, signature)) {
-      return {
-        valid: false,
-        reason: "Signature mismatch",
-      };
-    }
-
-    return {
-      valid: true,
-      reason: null,
-    };
+    return { valid: true, reason: null };
   }
 }
 
-module.exports = {
-  YouzanVerification,
-};
+module.exports = { YouzanVerification };
