@@ -43,9 +43,11 @@ router.post("/orders", async (req, res) => {
       email: order.email,
     });
 
-    await emailService.sendOrderCreatedEmail(order);
-
     res.status(201).json(order);
+
+    emailService.sendOrderCreatedEmail(order).catch((err) => {
+      logError("email.order_created.unhandled", err, { orderId: order.id });
+    });
   } catch (err) {
     logError("order.create.error", err);
     res.status(500).json({ error: err.message });

@@ -168,7 +168,9 @@ class Scheduler {
         scheduledTime: cleanupScheduledTime,
       });
 
-      await this.emailService.sendProvisionSuccessEmail(order, dnsResult.name);
+      await this.emailService.sendProvisionSuccessEmail(order, dnsResult.name).catch((err) => {
+        console.error(`Email send failed for order ${job.orderId}:`, err.message);
+      });
 
       console.log(`Provision job ${job.id} completed for order ${job.orderId}`);
     } catch (err) {
