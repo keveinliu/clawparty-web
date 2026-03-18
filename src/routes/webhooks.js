@@ -6,12 +6,15 @@ const { Scheduler } = require("../scheduler");
 const router = express.Router();
 const orderStore = new OrderStore();
 
-router.post("/youzan/payment-callback", express.raw({ type: "application/json" }), (req, res) => {
+router.post("/youzan/payment-callback", express.raw({ type: "*/*" }), (req, res) => {
   try {
+    console.log("[youzan webhook] headers:", JSON.stringify(req.headers));
+
     const signature = req.headers["x-youzan-signature"];
     const timestamp = req.headers["x-youzan-timestamp"];
 
     if (!signature || !timestamp) {
+      console.warn("[youzan webhook] missing headers, signature:", signature, "timestamp:", timestamp);
       return res.status(400).json({
         error: "Missing signature or timestamp header",
       });
@@ -37,7 +40,7 @@ router.post("/youzan/payment-callback", express.raw({ type: "application/json" }
     );
 
     if (!verification.valid) {
-      console.warn("Webhook verification failed:", verification.reason);
+      console.warn("[youzan webhook] verification failed:", verification.reason, "signature:", signature, "timestamp:", timestamp);
       return res.status(401).json({
         error: "Webhook verification failed",
         reason: verification.reason,
