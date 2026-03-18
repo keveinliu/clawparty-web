@@ -45,6 +45,9 @@ router.post("/youzan/payment-callback", express.raw({ type: "application/json" }
     }
 
     const data = JSON.parse(payload);
+    console.log("[youzan webhook] headers:", JSON.stringify(req.headers));
+    console.log("[youzan webhook] payload:", JSON.stringify(data, null, 2));
+
     const { orderId, status, transactionId } = data;
 
     if (!orderId) {
