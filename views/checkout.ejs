@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>下单 - Clawparty</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+      width: 100%;
+      padding: 40px;
+    }
+    h1 {
+      font-size: 32px;
+      color: #333;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    .form-group {
+      margin-bottom: 24px;
+    }
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+    }
+    input, select {
+      width: 100%;
+      padding: 12px;
+      font-size: 14px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    .submit-btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+    }
+    .submit-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 40px rgba(102, 126, 234, 0.6);
+    }
+    .submit-btn:active {
+      transform: translateY(0);
+    }
+    .submit-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .back-link {
+      display: block;
+      text-align: center;
+      margin-top: 20px;
+      color: #667eea;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .back-link:hover {
+      text-decoration: underline;
+    }
+    .error {
+      background: #fee;
+      color: #c33;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      display: none;
+    }
+    .success {
+      background: #efe;
+      color: #3c3;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🛒 下单</h1>
+    
+    <div id="error" class="error"></div>
+    <div id="success" class="success"></div>
+
+    <form id="checkoutForm">
+      <div class="form-group">
+        <label for="quantity">订阅数量 *</label>
+        <input 
+          type="number" 
+          id="quantity" 
+          name="quantity" 
+          min="1" 
+          max="100" 
+          value="1" 
+          required
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="deliveryTime">配送时间 *</label>
+        <input 
+          type="datetime-local" 
+          id="deliveryTime" 
+          name="deliveryTime" 
+          required
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="email">邮箱</label>
+        <input type="email" id="email" name="email" required placeholder="请输入邮箱地址">
+      </div>
+
+      <div class="form-group">
+        <label for="phone">手机号</label>
+        <input type="tel" id="phone" name="phone" required placeholder="请输入手机号">
+      </div>
+
+      <button type="submit" class="submit-btn">提交订单</button>
+    </form>
+
+    <a href="/" class="back-link">← 返回首页</a>
+  </div>
+
+  <script>
+    const form = document.getElementById('checkoutForm');
+    const submitButton = form.querySelector('.submit-btn');
+    const errorDiv = document.getElementById('error');
+    const successDiv = document.getElementById('success');
+
+    function showError(message) {
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+      successDiv.style.display = 'none';
+    }
+
+    function showSuccess(message) {
+      successDiv.textContent = message;
+      successDiv.style.display = 'block';
+      errorDiv.style.display = 'none';
+    }
+
+    function setSubmitting(isSubmitting) {
+      submitButton.disabled = isSubmitting;
+      submitButton.textContent = isSubmitting ? '处理中...' : '提交订单';
+    }
+
+    async function parseJsonSafely(response) {
+      try {
+        return await response.json();
+      } catch (err) {
+        return {};
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const quantity = document.getElementById('quantity').value;
+      const deliveryTime = document.getElementById('deliveryTime').value;
+      const email = document.getElementById('email').value;
+      const phone = document.getElementById('phone').value;
+
+      if (!quantity || !deliveryTime || !email || !phone) {
+        showError('请填写所有必填项');
+        return;
+      }
+
+      setSubmitting(true);
+
+      try {
+        const response = await fetch('/api/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            quantity: Number(quantity),
+            deliveryTime: new Date(deliveryTime).toISOString(),
+            email,
+            phone,
+          }),
+        });
+
+        const orderPayload = await parseJsonSafely(response);
+        if (!response.ok) {
+          showError(orderPayload.error || '创建订单失败');
+          return;
+        }
+
+        const order = orderPayload;
+        showSuccess(`订单创建成功，正在准备支付（订单ID: ${order.id}）`);
+
+        const paymentResponse = await fetch(`/api/orders/${order.id}/payment-session`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const paymentPayload = await parseJsonSafely(paymentResponse);
+        if (!paymentResponse.ok) {
+          showError(paymentPayload.error || '创建支付会话失败');
+          return;
+        }
+
+        if (paymentPayload.checkoutUrl) {
+          window.location.href = paymentPayload.checkoutUrl;
+          return;
+        }
+
+        const query = new URLSearchParams({
+          orderId: order.id,
+        });
+        window.location.href = `/success?${query.toString()}`;
+      } catch (err) {
+        showError(`错误: ${err.message}`);
+      } finally {
+        setSubmitting(false);
+      }
+    });
+
+    const deliveryTimeInput = document.getElementById('deliveryTime');
+    const now = new Date();
+    now.setMinutes(now.getMinutes() + 30);
+    const minDateTime = now.toISOString().slice(0, 16);
+    deliveryTimeInput.min = minDateTime;
+    deliveryTimeInput.value = minDateTime;
+  </script>
+</body>
+</html>

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>订单成功 - Clawparty</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+      width: 100%;
+      padding: 60px 40px;
+      text-align: center;
+    }
+    .success-icon {
+      font-size: 80px;
+      margin-bottom: 20px;
+      animation: bounce 0.6s ease-in-out;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    h1 {
+      font-size: 32px;
+      color: #333;
+      margin-bottom: 16px;
+    }
+    .message {
+      font-size: 16px;
+      color: #666;
+      margin-bottom: 30px;
+      line-height: 1.6;
+    }
+    .order-info {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      text-align: left;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #e0e0e0;
+      font-size: 14px;
+    }
+    .info-row:last-child {
+      border-bottom: none;
+    }
+    .info-label {
+      color: #666;
+      font-weight: 500;
+    }
+    .info-value {
+      color: #333;
+      font-weight: 600;
+    }
+    .action-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+    .btn {
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 40px rgba(102, 126, 234, 0.6);
+    }
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #333;
+      border: 1px solid #ddd;
+    }
+    .btn-secondary:hover {
+      background: #e8e8e8;
+    }
+    .status-badge {
+      display: inline-block;
+      background: #e8f5e9;
+      color: #2e7d32;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+    .action-error {
+      margin-top: 16px;
+      background: #fee;
+      color: #c33;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 14px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="success-icon">✅</div>
+    <h1>订单创建成功！</h1>
+    <p class="message">
+      您的订单已成功创建。系统将在配送时间自动为您部署云资源。
+    </p>
+
+    <div class="order-info">
+      <div class="info-row">
+        <span class="info-label">订单ID</span>
+        <span class="info-value" id="orderId"><%= orderId %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">状态</span>
+        <span class="info-value">待支付</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">下一步</span>
+        <span class="info-value">完成支付</span>
+      </div>
+    </div>
+
+    <div class="action-buttons">
+      <button id="continuePaymentBtn" class="btn btn-primary" onclick="proceedToPayment()">继续支付</button>
+      <a href="/" class="btn btn-secondary">返回首页</a>
+    </div>
+
+    <div id="actionError" class="action-error"></div>
+    <div class="status-badge">系统将自动处理您的订单</div>
+    <div id="paymentMeta" data-order-id="<%= orderId || '' %>" data-checkout-url="<%= checkoutUrl || '' %>"></div>
+  </div>
+
+  <script>
+    const paymentMeta = document.getElementById('paymentMeta');
+    const orderId = paymentMeta.dataset.orderId;
+    const initialCheckoutUrl = paymentMeta.dataset.checkoutUrl;
+    const actionError = document.getElementById('actionError');
+    const continueButton = document.getElementById('continuePaymentBtn');
+
+    function showActionError(message) {
+      actionError.textContent = message;
+      actionError.style.display = 'block';
+    }
+
+    function setLoading(isLoading) {
+      continueButton.disabled = isLoading;
+      continueButton.textContent = isLoading ? '跳转中...' : '继续支付';
+    }
+
+    async function parseJsonSafely(response) {
+      try {
+        return await response.json();
+      } catch (err) {
+        return {};
+      }
+    }
+
+    async function proceedToPayment() {
+      if (!orderId) {
+        showActionError('订单信息缺失，请返回首页重新下单。');
+        return;
+      }
+
+      if (initialCheckoutUrl) {
+        window.location.href = initialCheckoutUrl;
+        return;
+      }
+
+      setLoading(true);
+      actionError.style.display = 'none';
+
+      try {
+        const res = await fetch(`/api/orders/${orderId}/payment-session`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const payload = await parseJsonSafely(res);
+        if (!res.ok) {
+          showActionError(payload.error || '获取支付链接失败，请稍后重试。');
+          return;
+        }
+
+        if (!payload.checkoutUrl) {
+          showActionError('支付链接暂不可用，请稍后重试。');
+          return;
+        }
+
+        window.location.href = payload.checkoutUrl;
+      } catch (err) {
+        showActionError(`错误: ${err.message}`);
+      } finally {
+        setLoading(false);
+      }
+    }
+  </script>
+</body>
+</html>
