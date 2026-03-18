@@ -1,0 +1,47 @@
+const ORDER_STATUS = {
+  CREATED: "created",
+  PAYMENT_PENDING: "payment_pending",
+  PAID: "paid",
+  PROVISIONING_SCHEDULED: "provisioning_scheduled",
+  PROVISIONING_STARTED: "provisioning_started",
+  PROVISIONED: "provisioned",
+  COMPLETE: "complete",
+  FAILED: "failed",
+};
+
+const ALLOWED_TRANSITIONS = {
+  [ORDER_STATUS.CREATED]: [ORDER_STATUS.PAYMENT_PENDING, ORDER_STATUS.FAILED],
+  [ORDER_STATUS.PAYMENT_PENDING]: [ORDER_STATUS.PAID, ORDER_STATUS.FAILED],
+  [ORDER_STATUS.PAID]: [ORDER_STATUS.PROVISIONING_SCHEDULED, ORDER_STATUS.FAILED],
+  [ORDER_STATUS.PROVISIONING_SCHEDULED]: [
+    ORDER_STATUS.PROVISIONING_STARTED,
+    ORDER_STATUS.FAILED,
+  ],
+  [ORDER_STATUS.PROVISIONING_STARTED]: [ORDER_STATUS.PROVISIONED, ORDER_STATUS.FAILED],
+  [ORDER_STATUS.PROVISIONED]: [ORDER_STATUS.COMPLETE, ORDER_STATUS.FAILED],
+  [ORDER_STATUS.COMPLETE]: [],
+  [ORDER_STATUS.FAILED]: [],
+};
+
+const DIRECT_TRANSITIONS = {
+  [ORDER_STATUS.PAYMENT_PENDING]: [ORDER_STATUS.PROVISIONING_SCHEDULED],
+};
+
+function canTransition(from, to) {
+  if (from === to) {
+    return true;
+  }
+
+  const options = ALLOWED_TRANSITIONS[from] || [];
+  if (options.includes(to)) {
+    return true;
+  }
+
+  const directOptions = DIRECT_TRANSITIONS[from] || [];
+  return directOptions.includes(to);
+}
+
+module.exports = {
+  ORDER_STATUS,
+  canTransition,
+};
