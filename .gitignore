@@ -1,0 +1,8 @@
+node_modules/
+data/orders.json
+data/jobs.json
+.env
+*.log
+logs/
+.DS_Store
+data-test-*/
