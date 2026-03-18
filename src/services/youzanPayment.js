@@ -134,6 +134,17 @@ class YouzanPaymentService {
       });
 
       const body = response.data || {};
+
+      if (body.gw_err_resp) {
+        const gwErr = body.gw_err_resp;
+        logError("youzan.qrcode.gw_error", new Error(gwErr.err_msg), {
+          orderId: order.id,
+          errCode: gwErr.err_code,
+          traceId: gwErr.trace_id,
+        });
+        return this.fallbackSession(order, paymentSessionId, `gw_error_${gwErr.err_code}`);
+      }
+
       logInfo("youzan.qrcode.response", {
         orderId: order.id,
         status: response.status,
