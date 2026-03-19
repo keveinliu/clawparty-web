@@ -42,6 +42,7 @@ function getEnv(overrides = {}) {
     alipayPrivateKey: (source.ALIPAY_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
     alipayPublicKey: (source.ALIPAY_PUBLIC_KEY || "").replace(/\\n/g, "\n"),
     alipayNotifyUrl: source.ALIPAY_NOTIFY_URL || "",
+    alipaySandbox: boolFromEnv(source.ALIPAY_SANDBOX, false),
 
     wechatPayMchid: source.WECHAT_PAY_MCHID || "",
     wechatPaySerial: source.WECHAT_PAY_SERIAL || "",

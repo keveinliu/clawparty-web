@@ -14,7 +14,11 @@ class AlipayService {
         privateKey: env.alipayPrivateKey,
         alipayPublicKey: env.alipayPublicKey,
         keyType: "PKCS1",
+        gateway: env.alipaySandbox
+          ? "https://openapi-sandbox.dl.alipaydev.com/gateway.do"
+          : "https://openapi.alipay.com/gateway.do",
       });
+      logInfo("alipay.service.initialized", { sandbox: env.alipaySandbox });
     }
   }
 
