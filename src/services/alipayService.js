@@ -1,4 +1,4 @@
-const AlipaySdk = require("alipay-sdk").default;
+const { AlipaySdk } = require("alipay-sdk");
 const { getEnv } = require("../config/env");
 const { logInfo, logError } = require("../utils/logger");
 
