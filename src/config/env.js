@@ -7,7 +7,6 @@ function boolFromEnv(value, fallback = false) {
   if (value === undefined) {
     return fallback;
   }
-
   return ["1", "true", "yes", "on"].includes(String(value).toLowerCase());
 }
 
@@ -19,13 +18,12 @@ function getEnv(overrides = {}) {
     ...overrides,
   };
 
-  const grantId = Number(source.YOUZAN_GRANT_ID);
-
   return {
     port: Number(source.PORT || 3000),
     dataDir: source.DATA_DIR || path.join(PROJECT_ROOT, "data"),
     appBaseUrl: source.APP_BASE_URL || "http://localhost:3000",
     schedulerCron: source.SCHEDULER_CRON || "* * * * *",
+    mockPaymentEnabled: boolFromEnv(source.MOCK_PAYMENT_ENABLED, true),
 
     awsEnabled: boolFromEnv(source.AWS_ENABLED, false),
     awsRegion: source.AWS_REGION || "us-east-1",
@@ -38,19 +36,21 @@ function getEnv(overrides = {}) {
       source.AWS_AMI_SSM_PATH ||
       "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id",
 
-    youzanCheckoutBaseUrl:
-      source.YOUZAN_CHECKOUT_BASE_URL || "https://j.youzan.com/Y4aR8H",
-    youzanWebhookSkewSeconds: Number(source.YOUZAN_WEBHOOK_SKEW_SECONDS || 300),
-    mockPaymentEnabled: boolFromEnv(source.MOCK_PAYMENT_ENABLED, true),
-    youzanAuthorizeType: source.YOUZAN_AUTHORIZE_TYPE || "silent",
-    youzanGrantId: Number.isFinite(grantId) ? grantId : null,
-    youzanTokenUrl: source.YOUZAN_TOKEN_URL || "https://open.youzanyun.com/auth/token",
-    youzanApiBaseUrl: source.YOUZAN_API_BASE_URL || "https://open.youzanyun.com/api",
-    youzanUnitPriceFen: Number(source.YOUZAN_UNIT_PRICE_FEN || 100),
-    youzanRequestTimeoutMs: Number(source.YOUZAN_REQUEST_TIMEOUT_MS || 10000),
+    unitPriceFen: Number(source.UNIT_PRICE_FEN || 100),
 
-    youzanClientId: source.YOUZAN_CLIENT_ID || "",
-    youzanClientSecret: source.YOUZAN_CLIENT_SECRET || "",
+    alipayAppId: source.ALIPAY_APP_ID || "",
+    alipayPrivateKey: (source.ALIPAY_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+    alipayPublicKey: (source.ALIPAY_PUBLIC_KEY || "").replace(/\\n/g, "\n"),
+    alipayNotifyUrl: source.ALIPAY_NOTIFY_URL || "",
+
+    wechatPayMchid: source.WECHAT_PAY_MCHID || "",
+    wechatPaySerial: source.WECHAT_PAY_SERIAL || "",
+    wechatPayPrivateKey: (source.WECHAT_PAY_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+    wechatPayPubkeyId: source.WECHAT_PAY_PUBKEY_ID || "",
+    wechatPayPubkey: (source.WECHAT_PAY_PUBKEY || "").replace(/\\n/g, "\n"),
+    wechatPayApiV3Key: source.WECHAT_PAY_API_V3_KEY || "",
+    wechatPayAppId: source.WECHAT_PAY_APP_ID || "",
+    wechatPayNotifyUrl: source.WECHAT_PAY_NOTIFY_URL || "",
 
     emailUser: source.EMAIL || "",
     emailToken: source.EMAIL_TOKEN || "",

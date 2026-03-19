@@ -20,13 +20,16 @@
     "@aws-sdk/client-ec2": "^3.1007.0",
     "@aws-sdk/client-route-53": "^3.1007.0",
     "@aws-sdk/client-ssm": "^3.1007.0",
+    "alipay-sdk": "^4.14.0",
     "axios": "^1.13.6",
     "dotenv": "^17.3.1",
     "ejs": "^5.0.1",
     "express": "^5.2.1",
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.2",
+    "qrcode": "^1.5.4",
     "supertest": "^7.2.2",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "wechatpay-axios-plugin": "^0.9.6"
   }
 }

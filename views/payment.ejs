@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>选择支付方式 - Clawparty</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+      width: 100%;
+      padding: 40px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 28px;
+      color: #333;
+      margin-bottom: 24px;
+    }
+    .order-info {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      text-align: left;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #e0e0e0;
+      font-size: 14px;
+    }
+    .info-row:last-child {
+      border-bottom: none;
+    }
+    .info-label {
+      color: #666;
+      font-weight: 500;
+    }
+    .info-value {
+      color: #333;
+      font-weight: 600;
+      word-break: break-all;
+      max-width: 60%;
+      text-align: right;
+    }
+    .methods {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 30px;
+    }
+    .btn {
+      width: 100%;
+      padding: 14px;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      color: white;
+      transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+    }
+    .btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+    }
+    .btn:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+    .btn-alipay {
+      background: #1677ff;
+      box-shadow: 0 8px 20px rgba(22, 119, 255, 0.3);
+    }
+    .btn-wechat {
+      background: #09b83e;
+      box-shadow: 0 8px 20px rgba(9, 184, 62, 0.3);
+    }
+    .btn-mock {
+      background: #6c757d;
+      box-shadow: 0 8px 20px rgba(108, 117, 125, 0.3);
+      margin-top: 20px;
+    }
+    .qr-container {
+      display: none;
+      margin-top: 20px;
+      padding: 20px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      background: #fafafa;
+    }
+    .qr-container h3 {
+      font-size: 16px;
+      color: #333;
+      margin-bottom: 16px;
+    }
+    .qr-image {
+      max-width: 200px;
+      margin: 0 auto 16px;
+      display: block;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .qr-hint {
+      font-size: 14px;
+      color: #666;
+    }
+    .loading-state {
+      display: none;
+      color: #667eea;
+      font-weight: 600;
+      margin: 20px 0;
+    }
+    .error-msg {
+      display: none;
+      background: #fee;
+      color: #c33;
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 20px;
+      font-size: 14px;
+    }
+    .back-link {
+      display: block;
+      margin-top: 20px;
+      color: #667eea;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .back-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>请完成支付</h1>
+    
+    <div class="order-info">
+      <div class="info-row">
+        <span class="info-label">订单号</span>
+        <span class="info-value"><%= orderId %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">订阅数量</span>
+        <span class="info-value"><%= quantity %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">配送时间</span>
+        <span class="info-value"><%= new Date(deliveryTime).toLocaleString() %></span>
+      </div>
+    </div>
+
+    <div id="methodSelection" class="methods">
+      <button class="btn btn-alipay" onclick="getQrCode('alipay')">支付宝扫码支付</button>
+      <button class="btn btn-wechat" onclick="getQrCode('wechat')">微信扫码支付</button>
+      <button class="btn btn-mock" onclick="mockPayment()">模拟支付成功 (测试)</button>
+    </div>
+
+    <div id="loadingState" class="loading-state">
+      正在获取支付二维码...
+    </div>
+
+    <div id="errorMsg" class="error-msg"></div>
+
+    <div id="qrContainer" class="qr-container">
+      <h3 id="qrTitle">请扫码支付</h3>
+      <img id="qrImage" class="qr-image" src="" alt="支付二维码">
+      <p class="qr-hint">支付完成后请稍等，系统会自动跳转</p>
+    </div>
+
+    <a href="/" class="back-link">← 返回首页</a>
+  </div>
+
+  <script>
+    const orderId = "<%= orderId %>";
+    let pollInterval = null;
+
+    function showError(msg) {
+      const errorEl = document.getElementById('errorMsg');
+      errorEl.textContent = msg;
+      errorEl.style.display = 'block';
+      document.getElementById('loadingState').style.display = 'none';
+    }
+
+    function clearError() {
+      document.getElementById('errorMsg').style.display = 'none';
+    }
+
+    async function getQrCode(method) {
+      clearError();
+      document.getElementById('methodSelection').style.display = 'none';
+      document.getElementById('loadingState').style.display = 'block';
+
+      try {
+        const res = await fetch(`/api/orders/${orderId}/payment-qrcode`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ paymentMethod: method })
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+          throw new Error(data.error || '获取二维码失败');
+        }
+
+        document.getElementById('loadingState').style.display = 'none';
+        
+        const qrContainer = document.getElementById('qrContainer');
+        const qrImage = document.getElementById('qrImage');
+        const qrTitle = document.getElementById('qrTitle');
+
+        qrImage.src = data.qrDataUrl;
+        qrTitle.textContent = method === 'alipay' ? '支付宝扫码支付' : '微信扫码支付';
+        qrContainer.style.display = 'block';
+
+        startPolling();
+      } catch (err) {
+        showError(err.message);
+        document.getElementById('methodSelection').style.display = 'flex';
+      }
+    }
+
+    function startPolling() {
+      if (pollInterval) clearInterval(pollInterval);
+      
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/orders/${orderId}`);
+          if (!res.ok) return;
+          
+          const order = await res.json();
+          // Order status list: created, payment_pending, provisioning_scheduled, provisioning, provisioned, active, complete
+          const successStatuses = ['provisioning_scheduled', 'provisioning', 'provisioned', 'active', 'complete'];
+          
+          if (successStatuses.includes(order.status)) {
+            clearInterval(pollInterval);
+            window.location.href = `/success?orderId=${orderId}`;
+          }
+        } catch (err) {
+          console.error('Polling error:', err);
+        }
+      }, 3000);
+    }
+
+    async function mockPayment() {
+      clearError();
+      const btn = document.querySelector('.btn-mock');
+      btn.disabled = true;
+      btn.textContent = '处理中...';
+
+      try {
+        const res = await fetch(`/webhooks/mock/payment-success`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ orderId })
+        });
+        
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || '模拟支付失败');
+        }
+        
+        // Polling will catch the update, but we can also start polling just in case
+        startPolling();
+      } catch (err) {
+        showError(err.message);
+        btn.disabled = false;
+        btn.textContent = '模拟支付成功 (测试)';
+      }
+    }
+  </script>
+</body>
+</html>

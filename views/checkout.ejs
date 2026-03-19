@@ -228,28 +228,10 @@
         const order = orderPayload;
         showSuccess(`订单创建成功，正在准备支付（订单ID: ${order.id}）`);
 
-        const paymentResponse = await fetch(`/api/orders/${order.id}/payment-session`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-
-        const paymentPayload = await parseJsonSafely(paymentResponse);
-        if (!paymentResponse.ok) {
-          showError(paymentPayload.error || '创建支付会话失败');
-          return;
-        }
-
-        if (paymentPayload.checkoutUrl) {
-          window.location.href = paymentPayload.checkoutUrl;
-          return;
-        }
-
         const query = new URLSearchParams({
           orderId: order.id,
         });
-        window.location.href = `/success?${query.toString()}`;
+        window.location.href = `/payment?${query.toString()}`;
       } catch (err) {
         showError(`错误: ${err.message}`);
       } finally {

@@ -1,16 +1,14 @@
 const express = require("express");
-const { YouzanVerification } = require("../services/youzanVerification");
+const { AlipayService } = require("../services/alipayService");
+const { WechatPayService } = require("../services/wechatPayService");
 const { OrderStore, ORDER_STATUS } = require("../models/order");
 const { Scheduler } = require("../scheduler");
 const { logInfo, logWarn, logError } = require("../utils/logger");
 
 const router = express.Router();
 const orderStore = new OrderStore();
-
-function findOrderByQrId(qrId) {
-  const orders = orderStore.list();
-  return orders.find((o) => o.paymentQrId === qrId) || null;
-}
+const alipayService = new AlipayService();
+const wechatPayService = new WechatPayService();
 
 function scheduleJobs(orderId, order) {
   const scheduler = new Scheduler();
@@ -21,105 +19,80 @@ function scheduleJobs(orderId, order) {
     provisionJobId: provisionJob.id,
     cleanupJobId: cleanupJob.id,
   });
-  logInfo("youzan.webhook.jobs_scheduled", { orderId, provisionJobId: provisionJob.id, cleanupJobId: cleanupJob.id });
+  logInfo("payment.jobs_scheduled", { orderId, provisionJobId: provisionJob.id, cleanupJobId: cleanupJob.id });
 }
 
-router.post("/youzan/payment-callback", express.raw({ type: "*/*" }), async (req, res) => {
+function handlePaymentSuccess(outTradeNo, transactionId, provider) {
+  const orders = orderStore.list();
+  const order = orders.find((o) => o.paymentSessionId === outTradeNo) || null;
+  if (!order) {
+    logWarn("payment.notify.order_not_found", { outTradeNo, provider });
+    return false;
+  }
+  if (order.status !== ORDER_STATUS.PAYMENT_PENDING) {
+    logWarn("payment.notify.order_not_pending", { orderId: order.id, status: order.status });
+    return true;
+  }
+  orderStore.update(order.id, { paymentTransactionId: transactionId });
+  scheduleJobs(order.id, order);
+  logInfo("payment.notify.success", { orderId: order.id, outTradeNo, provider, transactionId });
+  return true;
+}
+
+router.post("/alipay/notify", express.urlencoded({ extended: false }), (req, res) => {
   try {
-    const rawBody = Buffer.isBuffer(req.body)
-      ? req.body.toString("utf-8")
-      : typeof req.body === "string"
-        ? req.body
-        : JSON.stringify(req.body);
-
-    const eventSign = req.headers["event-sign"];
-    const eventType = req.headers["event-type"];
-
-    logInfo("youzan.webhook.received", { eventType, eventSign: eventSign?.slice(0, 8) + "..." });
-
-    const verification = new YouzanVerification().verify(rawBody, eventSign);
-    if (!verification.valid) {
-      logWarn("youzan.webhook.verification_failed", { reason: verification.reason, eventType });
-      return res.status(401).json({ error: "Webhook verification failed", reason: verification.reason });
+    const valid = alipayService.verifyNotify(req.body);
+    if (!valid) {
+      logWarn("alipay.notify.invalid_sign");
+      return res.send("fail");
     }
-
-    const data = JSON.parse(rawBody);
-    const tid = data.id;
-    const youzanStatus = data.status;
-
-    logInfo("youzan.webhook.parsed", { tid, type: data.type, status: youzanStatus, kdt_id: data.kdt_id });
-
-    if (!["TRADE_PAID", "WAIT_SELLER_SEND_GOODS"].includes(youzanStatus)) {
-      logInfo("youzan.webhook.ignored", { tid, status: youzanStatus });
-      return res.json({ success: true, ignored: true });
+    const { trade_status, out_trade_no, trade_no } = req.body;
+    logInfo("alipay.notify.received", { trade_status, out_trade_no, trade_no });
+    if (trade_status === "TRADE_SUCCESS" || trade_status === "TRADE_FINISHED") {
+      handlePaymentSuccess(out_trade_no, trade_no, "alipay");
     }
-
-    let order = null;
-
-    try {
-      const msg = JSON.parse(decodeURIComponent(data.msg || "{}"));
-      const qrId = msg.qr_id || msg.full_order_info?.order_info?.qr_id || null;
-      logInfo("youzan.webhook.qr_lookup", { tid, qrId });
-      if (qrId) {
-        order = findOrderByQrId(qrId);
-        logInfo("youzan.webhook.qr_match", { tid, qrId, orderId: order?.id || null });
-      }
-    } catch (parseErr) {
-      logWarn("youzan.webhook.msg_parse_error", { tid, error: parseErr.message });
-    }
-
-    if (!order) {
-      order = orderStore.findLatestPaymentPending();
-      logInfo("youzan.webhook.fallback_match", { tid, orderId: order?.id || null });
-    }
-
-    if (!order) {
-      logWarn("youzan.webhook.no_order_found", { tid });
-      return res.status(404).json({ error: "No matching order found" });
-    }
-
-    if (order.status !== ORDER_STATUS.PAYMENT_PENDING) {
-      logWarn("youzan.webhook.order_not_pending", { orderId: order.id, status: order.status });
-      return res.json({ success: true, orderId: order.id, skipped: true });
-    }
-
-    orderStore.update(order.id, { youzanTid: tid });
-    scheduleJobs(order.id, order);
-
-    logInfo("youzan.webhook.success", { orderId: order.id, tid });
-    return res.json({ success: true, orderId: order.id });
-
+    res.send("success");
   } catch (err) {
-    logError("youzan.webhook.error", err);
-    res.status(500).json({ error: err.message });
+    logError("alipay.notify.error", err);
+    res.send("fail");
+  }
+});
+
+router.post("/wechat/notify", express.raw({ type: "application/json" }), (req, res) => {
+  try {
+    const rawBody = Buffer.isBuffer(req.body) ? req.body.toString("utf-8") : req.body;
+    const order = wechatPayService.verifyNotify(req.headers, rawBody);
+    logInfo("wechat.notify.received", {
+      trade_state: order.trade_state,
+      out_trade_no: order.out_trade_no,
+      transaction_id: order.transaction_id,
+    });
+    if (order.trade_state === "SUCCESS") {
+      handlePaymentSuccess(order.out_trade_no, order.transaction_id, "wechat");
+    }
+    res.json({ code: "SUCCESS", message: "成功" });
+  } catch (err) {
+    logError("wechat.notify.error", err);
+    res.status(400).json({ code: "FAIL", message: err.message });
   }
 });
 
 router.post("/mock/payment-success", express.json(), (req, res) => {
   try {
     const { orderId } = req.body;
-
     if (!orderId) {
       return res.status(400).json({ error: "Missing orderId" });
     }
-
     const order = orderStore.findById(orderId);
     if (!order) {
       return res.status(404).json({ error: "Order not found" });
     }
-
     if (order.status !== ORDER_STATUS.PAYMENT_PENDING) {
-      return res.status(400).json({ error: `Cannot process payment for order in status: ${order.status}` });
+      return res.status(400).json({ error: `Order status is ${order.status}` });
     }
-
     scheduleJobs(orderId, order);
-
     logInfo("mock.payment_success", { orderId });
-    return res.json({
-      success: true,
-      orderId,
-      status: ORDER_STATUS.PROVISIONING_SCHEDULED,
-    });
+    res.json({ success: true, orderId, status: ORDER_STATUS.PROVISIONING_SCHEDULED });
   } catch (err) {
     logError("mock.payment_success.error", err);
     res.status(500).json({ error: err.message });
