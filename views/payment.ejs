@@ -184,8 +184,9 @@
 
     <div id="qrContainer" class="qr-container">
       <h3 id="qrTitle">请扫码支付</h3>
-      <img id="qrImage" class="qr-image" src="" alt="支付二维码">
+      <img id="qrImage" class="qr-image" src="" alt="支付二维码" title="点击刷新二维码" style="cursor:pointer;" onclick="refreshQrCode()">
       <p class="qr-hint">支付完成后请稍等，系统会自动跳转</p>
+      <p class="qr-hint" style="margin-top:8px;color:#999;font-size:12px;">二维码失效？点击图片刷新</p>
     </div>
 
     <a href="/" class="back-link">← 返回首页</a>
@@ -194,6 +195,7 @@
   <script>
     const orderId = "<%= orderId %>";
     let pollInterval = null;
+    let currentMethod = null;
 
     function showError(msg) {
       const errorEl = document.getElementById('errorMsg');
@@ -206,7 +208,29 @@
       document.getElementById('errorMsg').style.display = 'none';
     }
 
+    async function refreshQrCode() {
+      if (!currentMethod) return;
+      const qrImage = document.getElementById('qrImage');
+      qrImage.style.opacity = '0.4';
+      clearError();
+      try {
+        const res = await fetch(`/api/orders/${orderId}/payment-qrcode`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentMethod: currentMethod })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || '刷新失败');
+        qrImage.src = data.qrDataUrl;
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        qrImage.style.opacity = '1';
+      }
+    }
+
     async function getQrCode(method) {
+      currentMethod = method;
       clearError();
       document.getElementById('methodSelection').style.display = 'none';
       document.getElementById('loadingState').style.display = 'block';

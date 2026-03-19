@@ -25,7 +25,9 @@ class PaymentService {
   }
 
   async createQrCode({ orderId, quantity, paymentMethod }) {
-    const outTradeNo = orderId.replace(/-/g, "").slice(0, 32);
+    const base = orderId.replace(/-/g, "").slice(0, 20);
+    const ts = Date.now().toString().slice(-12);
+    const outTradeNo = `${base}${ts}`;
     const subject = `ClawParty 订阅 ${quantity}小时`;
 
     if (this.isMockEnabled()) {
