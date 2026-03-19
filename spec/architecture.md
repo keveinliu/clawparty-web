@@ -18,7 +18,8 @@ Browser -> Express App -> Orders/Jobs Store -> Scheduler -> AWS Services
 ### 1. Web Layer (`views/`)
 
 - `index.ejs`: landing page with subscription entry.
-- `checkout.ejs`: order form (`quantity`, `deliveryTime`, `phone`).
+- `checkout.ejs`: order form (`quantity`, `deliveryTime`, `phone`, `email`).
+- `payment.ejs`: payment method selection, QR code display, and status polling.
 - `success.ejs`: confirmation page.
 - `error.ejs`: error page.
 
@@ -33,14 +34,15 @@ Browser -> Express App -> Orders/Jobs Store -> Scheduler -> AWS Services
 - `POST /orders`
 - `GET /orders/:id`
 - `GET /orders`
-- `POST /orders/:id/payment-session`
+- `POST /orders/:id/payment-qrcode`
 - `POST /orders/:id/payment-success`
 
 Payment success schedules two jobs: `provision` and `cleanup`.
 
 ### 4. Webhook Routes (`src/routes/webhooks.js`)
 
-- `POST /webhooks/youzan/payment-callback`
+- `POST /webhooks/alipay/notify`
+- `POST /webhooks/wechat/notify`
 - `POST /webhooks/mock/payment-success`
 
 Both routes schedule the same two-job lifecycle.
@@ -58,9 +60,10 @@ Target order contract:
   quantity: number,
   deliveryTime: ISO8601,
   phone: string,
+  email: string,
   createdAt: ISO8601,
   updatedAt: ISO8601,
-  paymentSessionId: uuid | null,
+  paymentTransactionId: string | null,
   provisionJobId: uuid | null,
   cleanupJobId: uuid | null,
   ec2InstanceId: string | null,
@@ -96,11 +99,11 @@ Current/target methods:
 - `stopInstance(instanceId)`
 - `deleteDnsRecord(recordNameOrId)`
 
-### 8. Youzan Verification (`src/services/youzanVerification.js`)
+### 8. Payment Services (`src/services/`)
 
-- HMAC-SHA256 signature verification.
-- Timestamp skew protection.
-- Raw payload verification support.
+- `alipayService.js`: Alipay SDK wrapper for `alipay.trade.precreate` and signature verification.
+- `wechatPayService.js`: WeChat Pay Native Pay wrapper and AES-GCM payload decryption.
+- `paymentService.js`: Unified payment interface with mock mode support.
 
 ## Data Storage
 
@@ -151,10 +154,22 @@ AWS_SECURITY_GROUP_ID=
 AWS_SUBNET_ID=
 AWS_AMI_SSM_PATH=/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id
 
-YOUZAN_CHECKOUT_BASE_URL=https://j.youzan.com/Y4aR8H
-YOUZAN_WEBHOOK_SKEW_SECONDS=300
-YOUZAN_CLIENT_ID=
-YOUZAN_CLIENT_SECRET=
+MOCK_PAYMENT_ENABLED=true
+UNIT_PRICE_FEN=100
+
+ALIPAY_APP_ID=
+ALIPAY_PRIVATE_KEY=
+ALIPAY_PUBLIC_KEY=
+ALIPAY_NOTIFY_URL=https://domain.com/webhooks/alipay/notify
+
+WECHAT_PAY_MCHID=
+WECHAT_PAY_SERIAL=
+WECHAT_PAY_PRIVATE_KEY=
+WECHAT_PAY_PUBKEY_ID=
+WECHAT_PAY_PUBKEY=
+WECHAT_PAY_API_V3_KEY=
+WECHAT_PAY_APP_ID=
+WECHAT_PAY_NOTIFY_URL=https://domain.com/webhooks/wechat/notify
 ```
 
 Cleanup delay is derived from `quantity`; no fixed global delay is required.

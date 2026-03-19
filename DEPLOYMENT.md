@@ -1,6 +1,6 @@
 # 生产部署指南
 
-本文档说明如何将 Clawparty 部署到云主机并配置有赞支付 webhook。
+本文档说明如何将 Clawparty 部署到云主机并配置支付宝和微信支付 Webhook。
 
 ## 部署前准备
 
@@ -66,14 +66,25 @@ AWS_SECURITY_GROUP_ID=sg-xxxxxxxxx
 AWS_SUBNET_ID=subnet-xxxxxxxxx
 AWS_AMI_SSM_PATH=/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id
 
-# 有赞支付配置
-YOUZAN_CLIENT_ID=your_client_id
-YOUZAN_CLIENT_SECRET=your_client_secret
-YOUZAN_AUTHORIZE_TYPE=silent
-YOUZAN_GRANT_ID=your_grant_id
-YOUZAN_WEBHOOK_SECRET=your_webhook_secret
-YOUZAN_CHECKOUT_BASE_URL=https://j.youzan.com/YOUR_LINK
-YOUZAN_UNIT_PRICE_FEN=100
+# 支付配置
+MOCK_PAYMENT_ENABLED=false
+UNIT_PRICE_FEN=100
+
+# 支付宝配置
+ALIPAY_APP_ID=your_app_id
+ALIPAY_PRIVATE_KEY="your_private_key"
+ALIPAY_PUBLIC_KEY="alipay_public_key"
+ALIPAY_NOTIFY_URL=https://your-domain.com/webhooks/alipay/notify
+
+# 微信支付配置
+WECHAT_PAY_MCHID=your_mchid
+WECHAT_PAY_SERIAL=your_serial
+WECHAT_PAY_PRIVATE_KEY="your_private_key"
+WECHAT_PAY_PUBKEY_ID=your_pubkey_id
+WECHAT_PAY_PUBKEY="wechat_pubkey"
+WECHAT_PAY_API_V3_KEY=your_v3_key
+WECHAT_PAY_APP_ID=your_appid
+WECHAT_PAY_NOTIFY_URL=https://your-domain.com/webhooks/wechat/notify
 
 # 调度器配置
 SCHEDULER_CRON="* * * * *"
@@ -220,74 +231,50 @@ pm2 startup
 pm2 save
 ```
 
-## 配置有赞支付 Webhook
+## 配置支付 Webhook
 
-### 1. 获取 Webhook URL
+### 1. 支付宝 Webhook 配置
 
-部署完成后，你的 webhook URL 为：
-```
-https://your-domain.com/webhooks/youzan/payment-callback
-```
+支付宝在支付成功后会向配置的 `ALIPAY_NOTIFY_URL` 发起 POST 请求。
 
-### 2. 在有赞商家后台配置
-
-1. 登录有赞商家后台：https://www.youzan.com
-2. 进入 **设置 → 开发者中心 → 消息推送**
-3. 添加推送 URL：
+1. 登录支付宝开放平台
+2. 进入应用详情页，配置授权回调地址和应用网关
+3. 配置接口加签方式（RSA2），获取应用公钥/私钥及支付宝公钥
+4. 将对应的密钥信息填入 `.env` 文件的 `ALIPAY_*` 变量中
+5. 部署完成后，支付宝会异步通知：
    ```
-   https://your-domain.com/webhooks/youzan/payment-callback
-   ```
-4. 选择推送事件：
-   - ✅ **交易支付成功** (`trade_TradePaid`)
-   - ✅ **支付成功** (`trade_TradeSuccess`)
-
-5. 配置签名密钥：
-   - 有赞会提供一个 **Webhook Secret**
-   - 将此密钥添加到 `.env` 文件：
-     ```bash
-     YOUZAN_WEBHOOK_SECRET=your_webhook_secret_from_youzan
-     ```
-
-6. 保存配置
-
-### 3. 测试 Webhook
-
-有赞提供测试推送功能：
-
-1. 在有赞后台点击 **测试推送**
-2. 查看服务器日志：
-   ```bash
-   pm2 logs clawparty
-   # 或
-   tail -f logs/pm2-out.log
-   ```
-3. 应该看到类似日志：
-   ```
-   Webhook verification failed: Invalid signature
-   ```
-   或
-   ```
-   Payment confirmed for order xxx, jobs scheduled
+   https://your-domain.com/webhooks/alipay/notify
    ```
 
-### 4. Webhook 验证流程
+### 2. 微信支付 Webhook 配置
+
+微信支付在支付成功后会向配置的 `WECHAT_PAY_NOTIFY_URL` 发起 POST 请求。
+
+1. 登录微信支付商户平台
+2. 申请 API 证书（获取商户私钥、证书序列号等）
+3. 配置 APIv3 密钥（AES-256-GCM 解密使用）
+4. 获取微信支付平台公钥及公钥 ID
+5. 将信息填入 `.env` 文件的 `WECHAT_PAY_*` 变量中，确保私钥和公钥包含完整的 PEM 格式换行
+6. 部署完成后，微信支付会异步通知：
+   ```
+   https://your-domain.com/webhooks/wechat/notify
+   ```
+
+### 3. Webhook 验证流程
 
 Clawparty 使用以下方式验证 webhook：
 
-1. **签名验证**：
-   - 有赞在请求头中发送 `X-Youzan-Signature`
-   - 使用 HMAC-SHA256 验证签名
-   - 签名密钥来自 `YOUZAN_WEBHOOK_SECRET`
+1. **支付宝签名验证**：
+   - 提取回调参数并过滤空值和 `sign`/`sign_type`
+   - 使用 RSA2 (SHA256WithRSA) 配合 `ALIPAY_PUBLIC_KEY` 验证签名
+   - 校验 `out_trade_no`（订单 ID）、`total_amount`、`app_id` 等信息
 
-2. **时间戳验证**：
-   - 检查 `X-Youzan-Timestamp` 请求头
-   - 防止重放攻击
+2. **微信支付验签与解密**：
+   - 使用 `Wechatpay-Signature` 和 `WECHAT_PAY_PUBKEY` 验证 RSA 签名
+   - 校验时间戳防重放
+   - 使用 `WECHAT_PAY_API_V3_KEY` 和 AES-256-GCM 解密 `resource.ciphertext` 提取真实订单数据
 
-3. **订单验证**：
-   - 检查订单是否存在
-   - 检查订单状态是否为 `payment_pending`
-
-### 5. Webhook 调试
+### 4. Webhook 调试
 
 如果 webhook 不工作，检查：
 
@@ -299,34 +286,15 @@ sudo tail -f /var/log/nginx/clawparty-error.log
 # 2. 检查应用日志
 pm2 logs clawparty
 
-# 3. 测试 webhook 端点是否可访问
-curl -X POST https://your-domain.com/webhooks/youzan/payment-callback \
-  -H "Content-Type: application/json" \
-  -d '{"test": true}'
-
-# 应该返回 400 或 401（缺少签名），而不是 404 或 502
-
-# 4. 检查防火墙
+# 3. 检查防火墙
 sudo ufw status
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 ```
 
-### 6. Webhook 安全建议
+### 5. Webhook 安全建议
 
-1. **仅允许有赞 IP 访问**（可选）：
-   ```nginx
-   location /webhooks/youzan/ {
-       # 有赞 webhook IP 白名单（示例，请向有赞确认实际 IP）
-       allow 47.96.0.0/16;
-       allow 47.97.0.0/16;
-       deny all;
-       
-       proxy_pass http://127.0.0.1:3000;
-   }
-   ```
-
-2. **启用请求日志**：
+1. **启用请求日志**：
    ```nginx
    location /webhooks/ {
        access_log /var/log/nginx/webhook-access.log;
@@ -334,10 +302,10 @@ sudo ufw allow 443/tcp
    }
    ```
 
-3. **监控 webhook 失败**：
+2. **监控 webhook 失败**：
    ```bash
    # 定期检查失败的 webhook
-   grep "Webhook verification failed" logs/pm2-out.log
+   grep -i "verification failed" logs/pm2-out.log
    ```
 
 ## 验证部署
@@ -367,7 +335,7 @@ curl https://your-domain.com
 curl https://your-domain.com/api/orders
 
 # 测试 webhook 端点
-curl -X POST https://your-domain.com/webhooks/youzan/payment-callback
+curl -X POST https://your-domain.com/webhooks/alipay/notify
 ```
 
 ### 3. 测试完整流程
@@ -435,9 +403,9 @@ tar -czf backup-$(date +%Y%m%d).tar.gz data/
 ### Webhook 不工作
 
 1. 检查 webhook URL 是否可从公网访问
-2. 检查 `YOUZAN_WEBHOOK_SECRET` 是否正确
+2. 检查 `ALIPAY_PUBLIC_KEY` 和 `WECHAT_PAY_API_V3_KEY` 等参数是否正确
 3. 查看 Nginx 和应用日志
-4. 在有赞后台测试推送
+4. 检查支付宝或微信商户后台的调用日志
 
 ### 调度器不执行任务
 

@@ -31,12 +31,25 @@ AWS_INSTANCE_TYPE=t3a.small
 AWS_SECURITY_GROUP_ID=sg-xxx
 AWS_SUBNET_ID=subnet-xxx
 
-# 有赞支付配置
-YOUZAN_CLIENT_ID=your_client_id
-YOUZAN_CLIENT_SECRET=your_client_secret
-YOUZAN_AUTHORIZE_TYPE=silent
-YOUZAN_GRANT_ID=your_grant_id
-YOUZAN_WEBHOOK_SECRET=your_webhook_secret
+# 支付配置
+MOCK_PAYMENT_ENABLED=false
+UNIT_PRICE_FEN=100
+
+# 支付宝配置
+ALIPAY_APP_ID=
+ALIPAY_PRIVATE_KEY=
+ALIPAY_PUBLIC_KEY=
+ALIPAY_NOTIFY_URL=https://domain.com/webhooks/alipay/notify
+
+# 微信支付配置
+WECHAT_PAY_MCHID=
+WECHAT_PAY_SERIAL=
+WECHAT_PAY_PRIVATE_KEY=
+WECHAT_PAY_PUBKEY_ID=
+WECHAT_PAY_PUBKEY=
+WECHAT_PAY_API_V3_KEY=
+WECHAT_PAY_APP_ID=
+WECHAT_PAY_NOTIFY_URL=https://domain.com/webhooks/wechat/notify
 
 # 调度器配置
 SCHEDULER_CRON="* * * * *"           # 每分钟执行一次
@@ -102,13 +115,22 @@ npm run cli help
 
 ## 支付流程
 
-Clawparty 使用有赞支付。详细说明请参考 [PAYMENT.md](./PAYMENT.md)。
+Clawparty 使用支付宝和微信 Native 扫码支付。
 
-### 重要提示
+### 支付方式
 
-**有赞支付不会自动跳转回网站。** 支付成功后：
-1. 有赞通过 webhook 异步通知服务器
-2. 用户需要手动返回网站查看订单状态
+支持两种支付方式：
+1. **支付宝**：通过 `alipay.trade.precreate` 接口生成二维码
+2. **微信支付**：通过 `/v3/pay/transactions/native` 接口生成二维码
+
+### 订单流转
+
+1. 用户在下单页 (`checkout.ejs`) 提交订单。
+2. 跳转到支付页 (`payment.ejs`)，选择支付宝或微信支付。
+3. 前端展示支付二维码，并轮询订单状态。
+4. 用户扫码支付后，支付宝/微信通过 webhook 异步通知服务器。
+5. 服务器验签并更新订单状态，触发资源创建任务。
+6. 前端轮询到支付成功状态，自动跳转到成功页。
 
 ### 追踪支付成功
 
@@ -137,8 +159,9 @@ clawparty-web/
 │   │   └── webhooks.js     # Webhook 路由（支付回调）
 │   ├── services/           # 业务逻辑
 │   │   ├── awsProvisioning.js
-│   │   ├── youzanPayment.js
-│   │   └── youzanVerification.js
+│   │   ├── alipayService.js
+│   │   ├── wechatPayService.js
+│   │   └── paymentService.js
 │   ├── models/             # 数据模型
 │   │   └── order.js
 │   └── config/             # 配置
@@ -146,6 +169,7 @@ clawparty-web/
 ├── views/                  # EJS 模板
 │   ├── index.ejs           # 首页
 │   ├── checkout.ejs        # 下单页
+│   ├── payment.ejs         # 支付二维码页
 │   └── success.ejs         # 订单成功页
 ├── data/                   # 数据存储（JSON）
 │   ├── orders.json         # 订单数据

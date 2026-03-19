@@ -23,6 +23,7 @@ Request body:
   "quantity": 2,
   "deliveryTime": "2026-03-12T15:30:00Z",
   "phone": "13800138000",
+  "email": "user@example.com",
   "idempotencyKey": "optional-unique-key"
 }
 ```
@@ -36,7 +37,8 @@ Response (`201`):
   "quantity": 2,
   "deliveryTime": "2026-03-12T15:30:00Z",
   "phone": "13800138000",
-  "paymentSessionId": null,
+  "email": "user@example.com",
+  "paymentTransactionId": null,
   "provisionJobId": null,
   "cleanupJobId": null,
   "ec2InstanceId": null,
@@ -59,9 +61,17 @@ Returns the current order snapshot including job IDs and resource metadata.
 
 Returns all orders.
 
-### Create Payment Session
+### Create Payment QR Code
 
-**POST** `/orders/:id/payment-session`
+**POST** `/orders/:id/payment-qrcode`
+
+Request body:
+
+```json
+{
+  "paymentMethod": "alipay" // or "wechat"
+}
+```
 
 Transitions order to `payment_pending`.
 
@@ -69,8 +79,10 @@ Response (`200`):
 
 ```json
 {
-  "paymentSessionId": "uuid",
-  "checkoutUrl": "https://j.youzan.com/Y4aR8H"
+  "qrDataUrl": "data:image/png;base64,...",
+  "outTradeNo": "uuid",
+  "provider": "alipay",
+  "mock": false
 }
 ```
 
@@ -97,30 +109,31 @@ Response (`200`):
 
 ## Webhooks
 
-### Youzan Payment Callback
+### Alipay Payment Notify
 
-**POST** `/webhooks/youzan/payment-callback`
+**POST** `/webhooks/alipay/notify`
 
-Headers:
-
-- `X-Youzan-Signature`
-- `X-Youzan-Timestamp`
-
-Body example:
-
-```json
-{
-  "orderId": "uuid",
-  "status": "paid",
-  "transactionId": "youzan-txn-id"
-}
-```
+Content-Type: `application/x-www-form-urlencoded`
 
 Verification rule:
+Verifies RSA2 signature using `ALIPAY_PUBLIC_KEY`.
 
-```text
-signature = HMAC-SHA256(rawPayload, YOUZAN_CLIENT_SECRET)
-```
+On success, schedules the same provision + cleanup jobs as `/orders/:id/payment-success`.
+
+### WeChat Pay Notification
+
+**POST** `/webhooks/wechat/notify`
+
+Content-Type: `application/json`
+
+Headers:
+- `Wechatpay-Signature`
+- `Wechatpay-Timestamp`
+- `Wechatpay-Nonce`
+- `Wechatpay-Serial`
+
+Verification rule:
+Verifies RSA signature using `WECHAT_PAY_PUBKEY` and decrypts AES-GCM payload using `WECHAT_PAY_API_V3_KEY`.
 
 On success, schedules the same provision + cleanup jobs as `/orders/:id/payment-success`.
 
